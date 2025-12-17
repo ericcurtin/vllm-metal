@@ -1,5 +1,7 @@
 name: Build and Release
 
+# This workflow creates a release on every commit to main as per requirements
+# Each release has a unique timestamp-based tag (e.g., v0.1.0-20231215-143022)
 on:
   push:
     branches: [ main ]

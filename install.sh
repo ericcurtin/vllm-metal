@@ -67,15 +67,34 @@ echo ""
 echo "Fetching latest release..."
 
 LATEST_RELEASE_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest"
-RELEASE_DATA=$(curl -fsSL "$LATEST_RELEASE_URL")
 
-if [[ -z "$RELEASE_DATA" ]]; then
+if ! RELEASE_DATA=$(curl -fsSL "$LATEST_RELEASE_URL" 2>&1); then
     echo -e "${RED}Error: Failed to fetch release information.${NC}"
+    echo "Please check your internet connection and try again."
     exit 1
 fi
 
-# Extract wheel URL
-WHEEL_URL=$(echo "$RELEASE_DATA" | grep -o 'https://github.com/[^"]*\.whl' | head -n 1)
+if [[ -z "$RELEASE_DATA" ]] || [[ "$RELEASE_DATA" == *"Not Found"* ]]; then
+    echo -e "${RED}Error: No releases found for this repository.${NC}"
+    echo "Please visit https://github.com/${REPO_OWNER}/${REPO_NAME}/releases"
+    exit 1
+fi
+
+# Extract wheel URL using Python's json module for robust parsing
+WHEEL_URL=$(python3 -c "
+import sys
+import json
+try:
+    data = json.loads('''$RELEASE_DATA''')
+    assets = data.get('assets', [])
+    for asset in assets:
+        name = asset.get('name', '')
+        if name.endswith('.whl'):
+            print(asset.get('browser_download_url', ''))
+            break
+except Exception as e:
+    print('', file=sys.stderr)
+")
 
 if [[ -z "$WHEEL_URL" ]]; then
     echo -e "${RED}Error: No wheel file found in the latest release.${NC}"
