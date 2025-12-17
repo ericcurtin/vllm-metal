@@ -45,9 +45,31 @@ ensure_venv() {
   source .venv/bin/activate
 }
 
+# Get repository root directory
+get_repo_root() {
+  git rev-parse --show-toplevel
+}
+
+# Install PyTorch from submodule
+install_pytorch_from_submodule() {
+  local repo_root
+  repo_root="$(get_repo_root)"
+  local pytorch_dir="${repo_root}/extern/pytorch"
+
+  if [ ! -d "$pytorch_dir" ]; then
+    error "PyTorch submodule not found at ${pytorch_dir}"
+    echo "Please run: git submodule update --init --recursive"
+    return 1
+  fi
+
+  section "Installing PyTorch from submodule"
+  uv pip install "$pytorch_dir"
+}
+
 # Install dev dependencies
 install_dev_deps() {
   section "Installing dependencies"
+  install_pytorch_from_submodule
   uv pip install -e ".[dev]"
 }
 
