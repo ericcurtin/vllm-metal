@@ -129,8 +129,10 @@ def is_intelligible(text: str) -> bool:
         "new",
     ]
 
-    text_lower = text.lower()
-    words_found = sum(1 for word in common_words if word in text_lower)
+    # Split text into words and match using word boundaries
+    text_words = set(re.findall(r"\b[a-zA-Z]+\b", text.lower()))
+    common_words_set = {word.lower() for word in common_words}
+    words_found = len(text_words & common_words_set)
 
     # Check that it has reasonable word structure
     # (contains letters, has word-like patterns)
@@ -170,7 +172,9 @@ class TestServerChatCompletions:
         ]
 
         env = os.environ.copy()
-        # Ensure we use the Metal backend
+        # Enable eager mode for Metal backend - this disables graph compilation
+        # which can be slow and may not be fully supported on MPS yet.
+        # Eager mode ensures immediate execution of operations.
         env["VLLM_METAL_EAGER_MODE"] = "1"
 
         print(f"\nStarting vLLM server with command: {' '.join(cmd)}")
@@ -191,8 +195,10 @@ class TestServerChatCompletions:
             try:
                 output, _ = process.communicate(timeout=10)
                 print(f"Server output: {output.decode()}")
-            except Exception:
-                pass
+            except subprocess.TimeoutExpired:
+                print("Timed out waiting for server output")
+            except UnicodeDecodeError as e:
+                print(f"Failed to decode server output: {e}")
             pytest.fail("vLLM server did not start within timeout")
 
         print(f"vLLM server is ready on port {server_port}")
@@ -207,8 +213,13 @@ class TestServerChatCompletions:
             else:
                 process.terminate()
             process.wait(timeout=30)
-        except Exception as e:
-            print(f"Error during cleanup: {e}")
+        except subprocess.TimeoutExpired:
+            print("Server did not terminate in time, force killing...")
+            process.kill()
+        except ProcessLookupError:
+            print("Server process already terminated")
+        except OSError as e:
+            print(f"OS error during cleanup: {e}")
             process.kill()
 
     def test_chat_completions_basic(self, vllm_server):
