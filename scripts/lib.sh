@@ -63,13 +63,19 @@ install_pytorch_from_submodule() {
   fi
 
   section "Installing PyTorch from submodule"
-  uv pip install "$pytorch_dir"
+  if ! uv pip install "$pytorch_dir"; then
+    error "Failed to install PyTorch from submodule"
+    return 1
+  fi
 }
 
 # Install dev dependencies
 install_dev_deps() {
   section "Installing dependencies"
-  install_pytorch_from_submodule
+  if ! install_pytorch_from_submodule; then
+    error "Failed to install PyTorch, aborting"
+    return 1
+  fi
   uv pip install -e ".[dev]"
 }
 
