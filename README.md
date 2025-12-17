@@ -20,6 +20,16 @@ This plugin enables vLLM to run on Apple Silicon Macs using Metal Performance Sh
 
 ## Installation
 
+### Quick Install (Recommended)
+
+Install the latest release with a single command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ericcurtin/vllm-metal/main/install.sh | bash
+```
+
+This will automatically download and install the latest macOS arm64 wheel.
+
 ### From PyPI (when available)
 
 ```bash
@@ -29,7 +39,7 @@ uv pip install vllm-metal
 ### From Source
 
 ```bash
-git clone https://github.com/vllm-project/vllm-metal.git
+git clone https://github.com/ericcurtin/vllm-metal.git
 cd vllm-metal
 uv pip install -e .
 ```
