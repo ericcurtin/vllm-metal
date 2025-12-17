@@ -42,7 +42,7 @@ jobs:
         uv venv .venv
         source .venv/bin/activate
         uv pip install -e ".[dev]"
-        uv pip install vllm openai
+        uv pip install vllm
 
     - name: Run server chat completions test
       run: |

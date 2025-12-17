@@ -25,7 +25,7 @@ DEFAULT_PORT = 8000
 def find_free_port():
     """Find a free port to use for the server."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("", 0))
+        s.bind((SERVER_HOST, 0))  # Bind to localhost only, not all interfaces
         s.listen(1)
         return s.getsockname()[1]
 
