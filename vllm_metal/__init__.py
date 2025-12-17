@@ -21,4 +21,5 @@ def register() -> str:
 def register_ops() -> None:
     """Register Metal-specific operations with vLLM."""
     from vllm_metal.ops import register_metal_ops
+
     register_metal_ops()

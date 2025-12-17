@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """KV cache operations for Metal backend."""
 
-from typing import List, Tuple
-
 import torch
 
 
@@ -39,7 +37,7 @@ def reshape_and_cache(
 
     # Store each token into its slot
     for i in range(num_tokens):
-        slot = slot_mapping[i].item()
+        slot = int(slot_mapping[i].item())
         block_idx = slot // block_size
         block_offset = slot % block_size
 
@@ -80,7 +78,7 @@ def reshape_and_cache_flash(
 
     # Store each token into its slot
     for i in range(num_tokens):
-        slot = slot_mapping[i].item()
+        slot = int(slot_mapping[i].item())
         block_idx = slot // block_size
         block_offset = slot % block_size
 
@@ -89,7 +87,7 @@ def reshape_and_cache_flash(
 
 
 def copy_blocks(
-    kv_caches: List[torch.Tensor],
+    kv_caches: list[torch.Tensor],
     src_to_dsts: torch.Tensor,
 ) -> None:
     """Copy blocks within KV caches.
@@ -138,7 +136,7 @@ def allocate_kv_cache(
     head_size: int,
     dtype: torch.dtype,
     device: torch.device,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Allocate KV cache tensors.
 
     Args:

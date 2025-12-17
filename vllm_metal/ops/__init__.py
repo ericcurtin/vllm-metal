@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Metal operations for vLLM."""
 
+from vllm_metal.ops.activation import (
+    gelu_and_mul,
+    gelu_tanh_and_mul,
+    silu_and_mul,
+)
 from vllm_metal.ops.attention import (
     paged_attention_v1,
     paged_attention_v2,
@@ -10,14 +15,9 @@ from vllm_metal.ops.cache import (
     reshape_and_cache,
     swap_blocks,
 )
-from vllm_metal.ops.activation import (
-    gelu_and_mul,
-    gelu_tanh_and_mul,
-    silu_and_mul,
-)
 from vllm_metal.ops.layernorm import (
-    rms_norm,
     fused_add_rms_norm,
+    rms_norm,
 )
 from vllm_metal.ops.rotary import (
     rotary_embedding,

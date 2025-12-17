@@ -6,17 +6,19 @@ allowing the core Metal operations to be tested standalone.
 """
 
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 try:
-    from vllm.platforms import Platform, PlatformEnum
     from vllm.logger import init_logger
+    from vllm.platforms import Platform, PlatformEnum
+
     VLLM_AVAILABLE = True
 except ImportError:
     VLLM_AVAILABLE = False
 
-    class PlatformEnum(Enum):
+    class PlatformEnum(Enum):  # type: ignore[no-redef]
         """Platform enumeration when vLLM is not available."""
+
         CUDA = "cuda"
         ROCM = "rocm"
         TPU = "tpu"
@@ -25,8 +27,9 @@ except ImportError:
         OOT = "oot"
         UNSPECIFIED = "unspecified"
 
-    class Platform:
+    class Platform:  # type: ignore[no-redef]
         """Base Platform class when vLLM is not available."""
+
         _enum = PlatformEnum.UNSPECIFIED
         device_name: str = ""
         device_type: str = ""
@@ -44,17 +47,18 @@ except ImportError:
             return 0
 
         @classmethod
-        def get_device_capability(cls, device_id: int = 0) -> Optional[Any]:
+        def get_device_capability(cls, device_id: int = 0) -> Any | None:
             return None
 
     def init_logger(name: str):
         """Simple logger when vLLM is not available."""
         import logging
+
         logger = logging.getLogger(name)
         if not logger.handlers:
             handler = logging.StreamHandler()
             formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
             )
             handler.setFormatter(formatter)
             logger.addHandler(handler)
@@ -74,19 +78,22 @@ except ImportError:
     from dataclasses import dataclass
     from enum import auto
 
-    class AttentionType(Enum):
+    class AttentionType(Enum):  # type: ignore[no-redef]
         """Attention type when vLLM is not available."""
+
         DECODER = auto()
         ENCODER = auto()
         ENCODER_DECODER = auto()
 
     @dataclass
-    class AttentionMetadata:
+    class AttentionMetadata:  # type: ignore[no-redef]
         """Base attention metadata when vLLM is not available."""
+
         pass
 
-    class AttentionMetadataBuilder:
+    class AttentionMetadataBuilder:  # type: ignore[no-redef]
         """Base metadata builder when vLLM is not available."""
+
         def __init__(self, *args, **kwargs):
             pass
 
@@ -96,13 +103,15 @@ except ImportError:
         def build(self, *args, **kwargs):
             pass
 
-    class AttentionImpl:
+    class AttentionImpl:  # type: ignore[no-redef]
         """Base attention implementation when vLLM is not available."""
+
         def forward(self, *args, **kwargs):
             raise NotImplementedError
 
-    class AttentionBackend:
+    class AttentionBackend:  # type: ignore[no-redef]
         """Base attention backend when vLLM is not available."""
+
         @staticmethod
         def get_name() -> str:
             return "UNKNOWN"
@@ -111,36 +120,44 @@ except ImportError:
 try:
     from vllm.sequence import ExecuteModelRequest, SequenceGroupMetadata
 except ImportError:
-    @dataclass
-    class SequenceGroupMetadata:
-        """Sequence group metadata when vLLM is not available."""
-        is_prompt: bool = False
-        seq_data: dict = None
-        block_tables: dict = None
 
     @dataclass
-    class ExecuteModelRequest:
+    class SequenceGroupMetadata:  # type: ignore[no-redef]
+        """Sequence group metadata when vLLM is not available."""
+
+        is_prompt: bool = False
+        seq_data: dict[Any, Any] | None = None
+        block_tables: dict[Any, Any] | None = None
+
+    @dataclass
+    class ExecuteModelRequest:  # type: ignore[no-redef]
         """Execute model request when vLLM is not available."""
-        seq_group_metadata_list: list = None
+
+        seq_group_metadata_list: list[Any] | None = None
 
 
 try:
     from vllm.worker.worker_base import WorkerBase, WorkerInput
 except ImportError:
-    class WorkerInput:
+
+    class WorkerInput:  # type: ignore[no-redef]
         """Worker input when vLLM is not available."""
+
         pass
 
-    class WorkerBase:
+    class WorkerBase:  # type: ignore[no-redef]
         """Worker base when vLLM is not available."""
+
         pass
 
 
 try:
     from vllm.model_executor.model_loader.loader import BaseModelLoader
 except ImportError:
-    class BaseModelLoader:
+
+    class BaseModelLoader:  # type: ignore[no-redef]
         """Base model loader when vLLM is not available."""
+
         def __init__(self, load_config):
             self.load_config = load_config
 
@@ -151,9 +168,11 @@ except ImportError:
 try:
     from vllm.config import VllmConfig
 except ImportError:
+
     @dataclass
-    class VllmConfig:
+    class VllmConfig:  # type: ignore[no-redef]
         """vLLM config when vLLM is not available."""
+
         model_config: Any = None
         cache_config: Any = None
         parallel_config: Any = None

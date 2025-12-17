@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Model runner for Metal backend."""
 
-from typing import Dict, List, Optional, Tuple, Type
-
 import torch
 import torch.nn as nn
 
@@ -11,7 +9,6 @@ from vllm_metal._compat import (
     SequenceGroupMetadata,
     init_logger,
 )
-
 from vllm_metal.attention import MetalAttentionBackend, MetalAttentionMetadata
 from vllm_metal.ops.cache import allocate_unified_kv_cache
 from vllm_metal.utils import get_optimal_dtype, mps_synchronize
@@ -56,7 +53,7 @@ class MetalModelRunner:
         self.is_driver_worker = is_driver_worker
 
         self.device = torch.device("mps")
-        self.model: Optional[nn.Module] = None
+        self.model: nn.Module | None = None
 
         # Determine dtype
         if model_config.dtype == "auto":
@@ -94,9 +91,7 @@ class MetalModelRunner:
         self.model = self.model.to(device=self.device, dtype=self.dtype)
         self.model.eval()
 
-        logger.info(
-            f"Model loaded: device={self.device}, dtype={self.dtype}"
-        )
+        logger.info(f"Model loaded: device={self.device}, dtype={self.dtype}")
 
     def get_model_memory_usage(self) -> int:
         """Get model memory usage in bytes."""
@@ -113,7 +108,7 @@ class MetalModelRunner:
         self,
         num_blocks: int,
         device: torch.device,
-    ) -> List[torch.Tensor]:
+    ) -> list[torch.Tensor]:
         """Initialize KV cache for all layers.
 
         Args:
@@ -140,8 +135,7 @@ class MetalModelRunner:
             kv_caches.append(kv_cache)
 
         logger.info(
-            f"Initialized KV cache: {num_layers} layers, "
-            f"{num_blocks} blocks each"
+            f"Initialized KV cache: {num_layers} layers, {num_blocks} blocks each"
         )
 
         return kv_caches
@@ -153,26 +147,21 @@ class MetalModelRunner:
         num_layers = self.model_config.get_num_layers(self.parallel_config)
 
         # 2 for K and V
-        elements_per_block = (
-            2 *
-            self.block_size *
-            num_kv_heads *
-            head_size
-        )
+        elements_per_block = 2 * self.block_size * num_kv_heads * head_size
 
         bytes_per_element = 2 if self.kv_cache_dtype == torch.float16 else 4
 
-        return elements_per_block * bytes_per_element * num_layers
+        return int(elements_per_block * bytes_per_element * num_layers)
 
     @property
     def vocab_size(self) -> int:
         """Get vocabulary size."""
-        return self.model_config.get_vocab_size()
+        return int(self.model_config.get_vocab_size())
 
     def execute_model(
         self,
         execute_model_req: ExecuteModelRequest,
-        kv_caches: List[torch.Tensor],
+        kv_caches: list[torch.Tensor],
     ):
         """Execute model forward pass.
 
@@ -191,6 +180,7 @@ class MetalModelRunner:
         )
 
         # Execute model
+        assert self.model is not None, "Model must be loaded before execution"
         with torch.inference_mode():
             hidden_states = self.model(
                 input_ids=input_tokens,
@@ -206,8 +196,8 @@ class MetalModelRunner:
 
     def _prepare_inputs(
         self,
-        seq_group_metadata_list: List[SequenceGroupMetadata],
-    ) -> Tuple[torch.Tensor, torch.Tensor, MetalAttentionMetadata]:
+        seq_group_metadata_list: list[SequenceGroupMetadata],
+    ) -> tuple[torch.Tensor, torch.Tensor, MetalAttentionMetadata]:
         """Prepare inputs for model execution.
 
         Args:
@@ -216,12 +206,12 @@ class MetalModelRunner:
         Returns:
             Tuple of (input_tokens, input_positions, attn_metadata)
         """
-        input_tokens: List[int] = []
-        input_positions: List[int] = []
-        seq_lens: List[int] = []
-        slot_mapping: List[int] = []
-        context_lens: List[int] = []
-        block_tables: List[List[int]] = []
+        input_tokens: list[int] = []
+        input_positions: list[int] = []
+        seq_lens: list[int] = []
+        slot_mapping: list[int] = []
+        context_lens: list[int] = []
+        block_tables: list[list[int]] = []
 
         num_prefill_tokens = 0
         num_decode_tokens = 0
@@ -249,8 +239,8 @@ class MetalModelRunner:
                             block_offset = pos % self.block_size
                             if block_idx < len(block_table):
                                 slot = (
-                                    block_table[block_idx] * self.block_size +
-                                    block_offset
+                                    block_table[block_idx] * self.block_size
+                                    + block_offset
                                 )
                                 slot_mapping.append(slot)
                 else:
@@ -274,8 +264,7 @@ class MetalModelRunner:
                         block_offset = context_len % self.block_size
                         if block_idx < len(block_table):
                             slot = (
-                                block_table[block_idx] * self.block_size +
-                                block_offset
+                                block_table[block_idx] * self.block_size + block_offset
                             )
                             slot_mapping.append(slot)
 
@@ -301,10 +290,10 @@ class MetalModelRunner:
 
     def _build_attn_metadata(
         self,
-        seq_lens: List[int],
-        context_lens: List[int],
-        block_tables: List[List[int]],
-        slot_mapping: List[int],
+        seq_lens: list[int],
+        context_lens: list[int],
+        block_tables: list[list[int]],
+        slot_mapping: list[int],
         num_prefill_tokens: int,
         num_decode_tokens: int,
     ) -> MetalAttentionMetadata:
@@ -321,17 +310,23 @@ class MetalModelRunner:
         Returns:
             MetalAttentionMetadata
         """
-        slot_mapping_tensor = torch.tensor(
-            slot_mapping, dtype=torch.long, device=self.device
-        ) if slot_mapping else None
+        slot_mapping_tensor = (
+            torch.tensor(slot_mapping, dtype=torch.long, device=self.device)
+            if slot_mapping
+            else None
+        )
 
-        seq_lens_tensor = torch.tensor(
-            seq_lens, dtype=torch.int, device=self.device
-        ) if seq_lens else None
+        seq_lens_tensor = (
+            torch.tensor(seq_lens, dtype=torch.int, device=self.device)
+            if seq_lens
+            else None
+        )
 
-        context_lens_tensor = torch.tensor(
-            context_lens, dtype=torch.int, device=self.device
-        ) if context_lens else None
+        context_lens_tensor = (
+            torch.tensor(context_lens, dtype=torch.int, device=self.device)
+            if context_lens
+            else None
+        )
 
         block_tables_tensor = None
         if block_tables:
@@ -364,6 +359,9 @@ class MetalModelRunner:
         dummy_positions = torch.zeros(1, dtype=torch.long, device=self.device)
 
         # Run a dummy forward pass
+        if self.model is None:
+            logger.warning("Model not loaded, skipping warmup")
+            return
         with torch.inference_mode():
             try:
                 # This may fail for some models, but that's okay for warmup

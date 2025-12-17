@@ -1,14 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """MPS-based attention implementation for vLLM Metal backend."""
 
-import math
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any
 
 import torch
-import torch.nn.functional as F
+from torch.nn import functional
 
 from vllm_metal._compat import AttentionImpl, AttentionType, init_logger
-
 from vllm_metal.attention.backend import MetalAttentionMetadata
 
 logger = init_logger(__name__)
@@ -26,12 +24,12 @@ class MPSAttentionImpl(AttentionImpl):
         num_heads: int,
         head_size: int,
         scale: float,
-        num_kv_heads: Optional[int] = None,
-        alibi_slopes: Optional[List[float]] = None,
-        sliding_window: Optional[int] = None,
+        num_kv_heads: int | None = None,
+        alibi_slopes: list[float] | None = None,
+        sliding_window: int | None = None,
         kv_cache_dtype: str = "auto",
-        blocksparse_params: Optional[Dict[str, Any]] = None,
-        logits_soft_cap: Optional[float] = None,
+        blocksparse_params: dict[str, Any] | None = None,
+        logits_soft_cap: float | None = None,
         attn_type: AttentionType = AttentionType.DECODER,
         **kwargs,
     ) -> None:
@@ -62,10 +60,9 @@ class MPSAttentionImpl(AttentionImpl):
         # Calculate number of query groups for GQA
         self.num_queries_per_kv = self.num_heads // self.num_kv_heads
 
+        self.alibi_slopes_tensor: torch.Tensor | None
         if alibi_slopes is not None:
-            self.alibi_slopes_tensor = torch.tensor(
-                alibi_slopes, dtype=torch.float32
-            )
+            self.alibi_slopes_tensor = torch.tensor(alibi_slopes, dtype=torch.float32)
         else:
             self.alibi_slopes_tensor = None
 
@@ -80,11 +77,11 @@ class MPSAttentionImpl(AttentionImpl):
         query: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,
-        kv_cache: Optional[torch.Tensor],
+        kv_cache: torch.Tensor | None,
         attn_metadata: MetalAttentionMetadata,
         k_scale: float = 1.0,
         v_scale: float = 1.0,
-        output: Optional[torch.Tensor] = None,
+        output: torch.Tensor | None = None,
         **kwargs,
     ) -> torch.Tensor:
         """Forward pass for attention.
@@ -113,14 +110,10 @@ class MPSAttentionImpl(AttentionImpl):
         # Handle prefill and decode separately
         if attn_metadata.is_prompt and attn_metadata.num_prefill_tokens > 0:
             # Prefill phase
-            out = self._prefill_attention(
-                query, key, value, kv_cache, attn_metadata
-            )
+            out = self._prefill_attention(query, key, value, kv_cache, attn_metadata)
         else:
             # Decode phase
-            out = self._decode_attention(
-                query, key, value, kv_cache, attn_metadata
-            )
+            out = self._decode_attention(query, key, value, kv_cache, attn_metadata)
 
         # Reshape output to [num_tokens, num_heads * head_size]
         out = out.view(num_tokens, self.num_heads * self.head_size)
@@ -136,7 +129,7 @@ class MPSAttentionImpl(AttentionImpl):
         query: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,
-        kv_cache: Optional[torch.Tensor],
+        kv_cache: torch.Tensor | None,
         attn_metadata: MetalAttentionMetadata,
     ) -> torch.Tensor:
         """Attention computation for prefill phase.
@@ -157,9 +150,9 @@ class MPSAttentionImpl(AttentionImpl):
         start_idx = 0
 
         for seq_len in attn_metadata.seq_lens:
-            q = query[start_idx:start_idx + seq_len]
-            k = key[start_idx:start_idx + seq_len]
-            v = value[start_idx:start_idx + seq_len]
+            q = query[start_idx : start_idx + seq_len]
+            k = key[start_idx : start_idx + seq_len]
+            v = value[start_idx : start_idx + seq_len]
 
             out = self._compute_attention(q, k, v, is_causal=True)
             outputs.append(out)
@@ -172,7 +165,7 @@ class MPSAttentionImpl(AttentionImpl):
         query: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,
-        kv_cache: Optional[torch.Tensor],
+        kv_cache: torch.Tensor | None,
         attn_metadata: MetalAttentionMetadata,
     ) -> torch.Tensor:
         """Attention computation for decode phase.
@@ -197,7 +190,8 @@ class MPSAttentionImpl(AttentionImpl):
             else:
                 continue
 
-            context_len = attn_metadata.context_lens_tensor[i].item() + 1
+            assert attn_metadata.context_lens_tensor is not None
+            context_len = int(attn_metadata.context_lens_tensor[i].item()) + 1
 
             # Gather keys and values from cache
             k_cache, v_cache = self._gather_from_cache(
@@ -205,16 +199,12 @@ class MPSAttentionImpl(AttentionImpl):
             )
 
             # Single query token attention against cached KV
-            q = query[i:i+1]  # [1, num_heads, head_size]
+            q = query[i : i + 1]  # [1, num_heads, head_size]
 
             # Expand KV for GQA if needed
             if self.num_queries_per_kv > 1:
-                k_cache = k_cache.repeat_interleave(
-                    self.num_queries_per_kv, dim=1
-                )
-                v_cache = v_cache.repeat_interleave(
-                    self.num_queries_per_kv, dim=1
-                )
+                k_cache = k_cache.repeat_interleave(self.num_queries_per_kv, dim=1)
+                v_cache = v_cache.repeat_interleave(self.num_queries_per_kv, dim=1)
 
             out = self._compute_attention(q, k_cache, v_cache, is_causal=False)
             outputs.append(out)
@@ -227,7 +217,7 @@ class MPSAttentionImpl(AttentionImpl):
         key: torch.Tensor,
         value: torch.Tensor,
         is_causal: bool = True,
-        attn_mask: Optional[torch.Tensor] = None,
+        attn_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Compute scaled dot-product attention.
 
@@ -265,7 +255,7 @@ class MPSAttentionImpl(AttentionImpl):
             is_causal = False
 
         # Use PyTorch's SDPA
-        out = F.scaled_dot_product_attention(
+        out = functional.scaled_dot_product_attention(
             query,
             key,
             value,
@@ -300,7 +290,7 @@ class MPSAttentionImpl(AttentionImpl):
         num_tokens = key.shape[0]
 
         for i in range(num_tokens):
-            slot = slot_mapping[i].item()
+            slot = int(slot_mapping[i].item())
             block_idx = slot // kv_cache.shape[2]
             block_offset = slot % kv_cache.shape[2]
 
@@ -314,7 +304,7 @@ class MPSAttentionImpl(AttentionImpl):
         kv_cache: torch.Tensor,
         block_table: torch.Tensor,
         context_len: int,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Gather keys and values from the paged KV cache.
 
         Args:
@@ -326,8 +316,6 @@ class MPSAttentionImpl(AttentionImpl):
             Tuple of (keys, values) tensors
         """
         block_size = kv_cache.shape[2]
-        num_kv_heads = kv_cache.shape[3]
-        head_size = kv_cache.shape[4]
 
         # Calculate number of blocks needed
         num_blocks_needed = (context_len + block_size - 1) // block_size
@@ -340,7 +328,7 @@ class MPSAttentionImpl(AttentionImpl):
             if block_idx >= len(block_table):
                 break
 
-            physical_block = block_table[block_idx].item()
+            physical_block = int(block_table[block_idx].item())
             tokens_in_block = min(block_size, context_len - tokens_gathered)
 
             # Gather from this block
@@ -352,10 +340,10 @@ class MPSAttentionImpl(AttentionImpl):
             tokens_gathered += tokens_in_block
 
         # Concatenate all blocks
-        keys = torch.cat(keys, dim=0)  # [context_len, num_kv_heads, head_size]
-        values = torch.cat(values, dim=0)
+        keys_tensor = torch.cat(keys, dim=0)  # [context_len, num_kv_heads, head_size]
+        values_tensor = torch.cat(values, dim=0)
 
-        return keys, values
+        return keys_tensor, values_tensor
 
     def _create_sliding_window_mask(
         self,
@@ -365,12 +353,10 @@ class MPSAttentionImpl(AttentionImpl):
         dtype: torch.dtype,
     ) -> torch.Tensor:
         """Create a sliding window attention mask."""
-        mask = torch.full(
-            (seq_len, seq_len), float("-inf"), device=device, dtype=dtype
-        )
+        mask = torch.full((seq_len, seq_len), float("-inf"), device=device, dtype=dtype)
         for i in range(seq_len):
             start = max(0, i - window_size + 1)
-            mask[i, start:i + 1] = 0
+            mask[i, start : i + 1] = 0
         return mask
 
     def _apply_alibi(
@@ -379,9 +365,10 @@ class MPSAttentionImpl(AttentionImpl):
         key_len: int,
         device: torch.device,
         dtype: torch.dtype,
-        existing_mask: Optional[torch.Tensor] = None,
+        existing_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Apply ALiBi position bias to attention mask."""
+        assert self.alibi_slopes_tensor is not None, "ALiBi slopes must be set"
         alibi_slopes = self.alibi_slopes_tensor.to(device=device, dtype=dtype)
 
         # Create position bias

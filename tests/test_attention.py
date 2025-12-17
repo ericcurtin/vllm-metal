@@ -3,7 +3,7 @@
 
 import pytest
 import torch
-import torch.nn.functional as F
+from torch.nn import functional
 
 from vllm_metal.attention.backend import (
     MetalAttentionBackend,
@@ -101,7 +101,7 @@ class TestMPSAttentionImpl:
         return MPSAttentionImpl(
             num_heads=8,
             head_size=64,
-            scale=1.0 / (64 ** 0.5),
+            scale=1.0 / (64**0.5),
             num_kv_heads=8,
         )
 
@@ -115,22 +115,18 @@ class TestMPSAttentionImpl:
     @pytest.mark.metal
     def test_forward_prefill(self, attention_impl, mps_device):
         """Test forward pass for prefill."""
-        batch_size = 2
         seq_len = 16
         num_heads = 8
         head_size = 64
 
         query = torch.randn(
-            seq_len, num_heads * head_size,
-            device=mps_device, dtype=torch.float16
+            seq_len, num_heads * head_size, device=mps_device, dtype=torch.float16
         )
         key = torch.randn(
-            seq_len, num_heads * head_size,
-            device=mps_device, dtype=torch.float16
+            seq_len, num_heads * head_size, device=mps_device, dtype=torch.float16
         )
         value = torch.randn(
-            seq_len, num_heads * head_size,
-            device=mps_device, dtype=torch.float16
+            seq_len, num_heads * head_size, device=mps_device, dtype=torch.float16
         )
 
         metadata = MetalAttentionMetadata(
@@ -161,22 +157,19 @@ class TestMPSAttentionImpl:
         impl = MPSAttentionImpl(
             num_heads=num_heads,
             head_size=head_size,
-            scale=1.0 / (head_size ** 0.5),
+            scale=1.0 / (head_size**0.5),
             num_kv_heads=num_kv_heads,
         )
 
         seq_len = 16
         query = torch.randn(
-            seq_len, num_heads * head_size,
-            device=mps_device, dtype=torch.float16
+            seq_len, num_heads * head_size, device=mps_device, dtype=torch.float16
         )
         key = torch.randn(
-            seq_len, num_kv_heads * head_size,
-            device=mps_device, dtype=torch.float16
+            seq_len, num_kv_heads * head_size, device=mps_device, dtype=torch.float16
         )
         value = torch.randn(
-            seq_len, num_kv_heads * head_size,
-            device=mps_device, dtype=torch.float16
+            seq_len, num_kv_heads * head_size, device=mps_device, dtype=torch.float16
         )
 
         metadata = MetalAttentionMetadata(
@@ -211,21 +204,18 @@ class TestAttentionCorrectness:
         impl = MPSAttentionImpl(
             num_heads=num_heads,
             head_size=head_size,
-            scale=1.0 / (head_size ** 0.5),
+            scale=1.0 / (head_size**0.5),
         )
 
         # Create inputs
         query = torch.randn(
-            seq_len, num_heads * head_size,
-            device=mps_device, dtype=torch.float32
+            seq_len, num_heads * head_size, device=mps_device, dtype=torch.float32
         )
         key = torch.randn(
-            seq_len, num_heads * head_size,
-            device=mps_device, dtype=torch.float32
+            seq_len, num_heads * head_size, device=mps_device, dtype=torch.float32
         )
         value = torch.randn(
-            seq_len, num_heads * head_size,
-            device=mps_device, dtype=torch.float32
+            seq_len, num_heads * head_size, device=mps_device, dtype=torch.float32
         )
 
         metadata = MetalAttentionMetadata(
@@ -250,17 +240,16 @@ class TestAttentionCorrectness:
         k = key.view(seq_len, num_heads, head_size).transpose(0, 1)
         v = value.view(seq_len, num_heads, head_size).transpose(0, 1)
 
-        scale = 1.0 / (head_size ** 0.5)
+        scale = 1.0 / (head_size**0.5)
         attn_weights = torch.matmul(q, k.transpose(-2, -1)) * scale
 
         # Apply causal mask
         causal_mask = torch.triu(
-            torch.full((seq_len, seq_len), float("-inf"), device=mps_device),
-            diagonal=1
+            torch.full((seq_len, seq_len), float("-inf"), device=mps_device), diagonal=1
         )
         attn_weights = attn_weights + causal_mask
 
-        attn_weights = F.softmax(attn_weights, dim=-1)
+        attn_weights = functional.softmax(attn_weights, dim=-1)
         expected = torch.matmul(attn_weights, v)
         expected = expected.transpose(0, 1).reshape(seq_len, num_heads * head_size)
 

@@ -16,14 +16,14 @@ This plugin enables vLLM to run on Apple Silicon Macs using Metal Performance Sh
 - Apple Silicon Mac
 - Python 3.10 or later
 - PyTorch 2.1.0 or later with MPS support
-- vLLM 0.6.0 or later
+- vLLM 0.12.0 or later
 
 ## Installation
 
 ### From PyPI (when available)
 
 ```bash
-pip install vllm-metal
+uv pip install vllm-metal
 ```
 
 ### From Source
@@ -31,13 +31,13 @@ pip install vllm-metal
 ```bash
 git clone https://github.com/vllm-project/vllm-metal.git
 cd vllm-metal
-pip install -e .
+uv pip install -e .
 ```
 
 ### With MLX Support (Optional)
 
 ```bash
-pip install vllm-metal[mlx]
+uv pip install vllm-metal[mlx]
 ```
 
 ## Quick Start
@@ -83,28 +83,6 @@ python -m vllm.entrypoints.openai.api_server \
     --dtype float16
 ```
 
-## Supported Models
-
-Most transformer-based models supported by vLLM work on Metal, including:
-
-- LLaMA / Llama 2 / Llama 3
-- Mistral / Mixtral
-- Qwen / Qwen2
-- Phi-2 / Phi-3
-- GPT-2 / GPT-J / GPT-NeoX
-- Falcon
-- MPT
-- OPT
-- BLOOM
-
-### Quantization Support
-
-- AWQ
-- GPTQ
-- Compressed Tensors
-
-Note: FP8 and some other quantization methods are not yet supported on Metal.
-
 ## Limitations
 
 - **Single GPU Only**: MPS does not support multi-GPU configurations
@@ -145,14 +123,9 @@ Try reducing `VLLM_METAL_MEMORY_FRACTION` or using a smaller model.
 
 ## Development
 
-### Running Tests
+### Running CI
 
 ```bash
-pip install -e ".[dev]"
-pytest tests/
+scripts/ci.sh
 ```
-
-## License
-
-Apache License 2.0, as found in the LICENSE file.
 

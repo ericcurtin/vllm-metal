@@ -2,7 +2,7 @@
 """Metal attention backend for vLLM."""
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type
+from typing import TYPE_CHECKING, Optional
 
 import torch
 
@@ -11,12 +11,11 @@ from vllm_metal._compat import (
     AttentionImpl,
     AttentionMetadata,
     AttentionMetadataBuilder,
-    AttentionType,
     init_logger,
 )
 
 if TYPE_CHECKING:
-    from vllm.worker.model_runner import ModelInputForGPUWithSamplingMetadata
+    pass
 
 logger = init_logger(__name__)
 
@@ -30,9 +29,9 @@ class MetalAttentionMetadata(AttentionMetadata):
     """
 
     # Sequence lengths for prefill
-    seq_lens: Optional[List[int]] = None
+    seq_lens: list[int] | None = None
     # Sequence lengths as tensor
-    seq_lens_tensor: Optional[torch.Tensor] = None
+    seq_lens_tensor: torch.Tensor | None = None
     # Maximum sequence length in prefill
     max_prefill_seq_len: int = 0
     # Maximum sequence length in decode
@@ -47,22 +46,22 @@ class MetalAttentionMetadata(AttentionMetadata):
     num_prefills: int = 0
 
     # Block tables for paged attention
-    block_tables: Optional[torch.Tensor] = None
+    block_tables: torch.Tensor | None = None
 
     # Slot mapping for KV cache
-    slot_mapping: Optional[torch.Tensor] = None
+    slot_mapping: torch.Tensor | None = None
 
     # Context lengths for each sequence
-    context_lens_tensor: Optional[torch.Tensor] = None
+    context_lens_tensor: torch.Tensor | None = None
 
     # Query start locations for variable-length attention
-    query_start_loc: Optional[torch.Tensor] = None
+    query_start_loc: torch.Tensor | None = None
 
     # Sequence start locations
-    seq_start_loc: Optional[torch.Tensor] = None
+    seq_start_loc: torch.Tensor | None = None
 
     # Attention mask for prefill (optional, for eager attention)
-    attn_mask: Optional[torch.Tensor] = None
+    attn_mask: torch.Tensor | None = None
 
     # Whether we're in prefill phase
     is_prompt: bool = False
@@ -82,8 +81,9 @@ class MetalAttentionMetadata(AttentionMetadata):
             num_decode_tokens=0,
             num_prefills=self.num_prefills,
             block_tables=None,
-            slot_mapping=self.slot_mapping[:self.num_prefill_tokens]
-            if self.slot_mapping is not None else None,
+            slot_mapping=self.slot_mapping[: self.num_prefill_tokens]
+            if self.slot_mapping is not None
+            else None,
             context_lens_tensor=None,
             query_start_loc=self.query_start_loc,
             seq_start_loc=self.seq_start_loc,
@@ -106,8 +106,9 @@ class MetalAttentionMetadata(AttentionMetadata):
             num_decode_tokens=self.num_decode_tokens,
             num_prefills=0,
             block_tables=self.block_tables,
-            slot_mapping=self.slot_mapping[self.num_prefill_tokens:]
-            if self.slot_mapping is not None else None,
+            slot_mapping=self.slot_mapping[self.num_prefill_tokens :]
+            if self.slot_mapping is not None
+            else None,
             context_lens_tensor=self.context_lens_tensor,
             query_start_loc=None,
             seq_start_loc=None,
@@ -123,10 +124,10 @@ class MetalAttentionMetadataBuilder(AttentionMetadataBuilder):
         super().__init__(*args, **kwargs)
         self.input_builder = input_builder
         self.runner = runner
-        self.slot_mapping: List[int] = []
-        self.prefill_seq_lens: List[int] = []
-        self.context_lens: List[int] = []
-        self.block_tables: List[List[int]] = []
+        self.slot_mapping: list[int] = []
+        self.prefill_seq_lens: list[int] = []
+        self.context_lens: list[int] = []
+        self.block_tables: list[list[int]] = []
         self.num_prefills = 0
         self.num_prefill_tokens = 0
         self.num_decode_tokens = 0
@@ -137,7 +138,6 @@ class MetalAttentionMetadataBuilder(AttentionMetadataBuilder):
         block_tables = seq_group_metadata.block_tables
 
         for i, seq_id in enumerate(seq_group_metadata.seq_data):
-            seq_data = seq_group_metadata.seq_data[seq_id]
             seq_len = seq_lens[i]
             query_len = query_lens[i]
             context_len = seq_len - query_len
@@ -173,25 +173,31 @@ class MetalAttentionMetadataBuilder(AttentionMetadataBuilder):
 
     def build(
         self,
-        seq_lens: List[int],
-        query_lens: List[int],
+        seq_lens: list[int],
+        query_lens: list[int],
         cuda_graph_pad_size: int = 0,
         batch_size: int = 0,
     ) -> MetalAttentionMetadata:
         """Build the attention metadata."""
         device = self.runner.device
 
-        slot_mapping_tensor = torch.tensor(
-            self.slot_mapping, dtype=torch.long, device=device
-        ) if self.slot_mapping else None
+        slot_mapping_tensor = (
+            torch.tensor(self.slot_mapping, dtype=torch.long, device=device)
+            if self.slot_mapping
+            else None
+        )
 
-        seq_lens_tensor = torch.tensor(
-            self.prefill_seq_lens, dtype=torch.int, device=device
-        ) if self.prefill_seq_lens else None
+        seq_lens_tensor = (
+            torch.tensor(self.prefill_seq_lens, dtype=torch.int, device=device)
+            if self.prefill_seq_lens
+            else None
+        )
 
-        context_lens_tensor = torch.tensor(
-            self.context_lens, dtype=torch.int, device=device
-        ) if self.context_lens else None
+        context_lens_tensor = (
+            torch.tensor(self.context_lens, dtype=torch.int, device=device)
+            if self.context_lens
+            else None
+        )
 
         # Build block tables tensor
         block_tables_tensor = None
@@ -228,9 +234,9 @@ class MetalAttentionMetadataBuilder(AttentionMetadataBuilder):
             seq_lens=self.prefill_seq_lens if self.prefill_seq_lens else None,
             seq_lens_tensor=seq_lens_tensor,
             max_prefill_seq_len=max(self.prefill_seq_lens)
-            if self.prefill_seq_lens else 0,
-            max_decode_seq_len=max(self.context_lens) + 1
-            if self.context_lens else 0,
+            if self.prefill_seq_lens
+            else 0,
+            max_decode_seq_len=max(self.context_lens) + 1 if self.context_lens else 0,
             num_prefill_tokens=self.num_prefill_tokens,
             num_decode_tokens=self.num_decode_tokens,
             num_prefills=self.num_prefills,
@@ -251,16 +257,17 @@ class MetalAttentionBackend(AttentionBackend):
         return "METAL"
 
     @staticmethod
-    def get_impl_cls() -> Type[AttentionImpl]:
+    def get_impl_cls() -> type[AttentionImpl]:
         from vllm_metal.attention.mps_attention import MPSAttentionImpl
+
         return MPSAttentionImpl
 
     @staticmethod
-    def get_metadata_cls() -> Type[MetalAttentionMetadata]:
+    def get_metadata_cls() -> type[MetalAttentionMetadata]:
         return MetalAttentionMetadata
 
     @staticmethod
-    def get_builder_cls() -> Type[MetalAttentionMetadataBuilder]:
+    def get_builder_cls() -> type[MetalAttentionMetadataBuilder]:
         return MetalAttentionMetadataBuilder
 
     @staticmethod
@@ -269,7 +276,7 @@ class MetalAttentionBackend(AttentionBackend):
         block_size: int,
         num_kv_heads: int,
         head_size: int,
-    ) -> Tuple[int, ...]:
+    ) -> tuple[int, ...]:
         """Get the shape of the KV cache."""
         # Shape: [num_blocks, 2, block_size, num_kv_heads, head_size]
         # The '2' is for key and value
@@ -288,7 +295,7 @@ class MetalAttentionBackend(AttentionBackend):
 
     @staticmethod
     def copy_blocks(
-        kv_caches: List[torch.Tensor],
+        kv_caches: list[torch.Tensor],
         src_to_dsts: torch.Tensor,
     ) -> None:
         """Copy blocks within KV caches."""
@@ -298,6 +305,6 @@ class MetalAttentionBackend(AttentionBackend):
             kv_cache[dst_indices] = kv_cache[src_indices]
 
     @staticmethod
-    def get_supported_head_sizes() -> List[int]:
+    def get_supported_head_sizes() -> list[int]:
         """Get supported attention head sizes."""
         return [64, 80, 96, 112, 128, 192, 256]

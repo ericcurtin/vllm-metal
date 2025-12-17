@@ -1,27 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0
 """Metal Platform implementation for vLLM."""
 
-import platform
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Optional, Tuple, Type
+from typing import TYPE_CHECKING
 
 import torch
 
 from vllm_metal._compat import Platform, PlatformEnum, init_logger
-
+from vllm_metal.envs import (
+    VLLM_METAL_EAGER_MODE,
+    VLLM_METAL_MEMORY_FRACTION,
+)
 from vllm_metal.utils import (
     check_mps_availability,
     get_apple_chip_name,
     get_metal_device_info,
     get_mps_memory_info,
-    is_apple_silicon,
     mps_empty_cache,
     mps_synchronize,
-)
-from vllm_metal.envs import (
-    VLLM_METAL_DEVICE_ID,
-    VLLM_METAL_EAGER_MODE,
-    VLLM_METAL_MEMORY_FRACTION,
 )
 
 if TYPE_CHECKING:
@@ -104,7 +100,7 @@ class MetalPlatform(Platform):
             device = torch.device(device)
 
     @classmethod
-    def get_current_memory_usage(cls, device=None) -> Tuple[int, int]:
+    def get_current_memory_usage(cls, device=None) -> tuple[int, int]:
         """Get current memory usage.
 
         Returns:
@@ -123,7 +119,7 @@ class MetalPlatform(Platform):
         mps_synchronize()
 
     @classmethod
-    def mem_get_info(cls) -> Tuple[int, int]:
+    def mem_get_info(cls) -> tuple[int, int]:
         """Get memory info (free, total).
 
         Note: MPS uses unified memory, so 'free' is estimated.
@@ -135,12 +131,10 @@ class MetalPlatform(Platform):
     @classmethod
     def check_and_update_config(cls, vllm_config: "VllmConfig") -> None:
         """Check and update vLLM configuration for Metal backend."""
-        from vllm.config import CacheConfig
 
         model_config = vllm_config.model_config
         cache_config = vllm_config.cache_config
         parallel_config = vllm_config.parallel_config
-        scheduler_config = vllm_config.scheduler_config
 
         # Validate platform availability
         available, error = check_mps_availability()
@@ -203,6 +197,7 @@ class MetalPlatform(Platform):
     def get_attn_backend_cls(cls):
         """Get the attention backend class for Metal."""
         from vllm_metal.attention import MetalAttentionBackend
+
         return MetalAttentionBackend
 
     @classmethod
@@ -296,6 +291,7 @@ class MetalPlatform(Platform):
     def import_kernels(cls) -> None:
         """Import Metal-specific kernels."""
         from vllm_metal import ops
+
         # Trigger kernel registration
         ops.register_metal_ops()
         logger.debug("Metal kernels imported")

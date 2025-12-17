@@ -34,7 +34,8 @@ class TestBasicInference:
         assert torch.allclose(
             d.sum(dim=-1),
             torch.ones(32, device=mps_device, dtype=torch.float16),
-            rtol=1e-2, atol=1e-2
+            rtol=1e-2,
+            atol=1e-2,
         )
 
     def test_attention_computation(self, mps_device):
@@ -45,17 +46,33 @@ class TestBasicInference:
         head_dim = 32
 
         # Create Q, K, V
-        q = torch.randn(batch_size, num_heads, seq_len, head_dim,
-                        device=mps_device, dtype=torch.float16)
-        k = torch.randn(batch_size, num_heads, seq_len, head_dim,
-                        device=mps_device, dtype=torch.float16)
-        v = torch.randn(batch_size, num_heads, seq_len, head_dim,
-                        device=mps_device, dtype=torch.float16)
+        q = torch.randn(
+            batch_size,
+            num_heads,
+            seq_len,
+            head_dim,
+            device=mps_device,
+            dtype=torch.float16,
+        )
+        k = torch.randn(
+            batch_size,
+            num_heads,
+            seq_len,
+            head_dim,
+            device=mps_device,
+            dtype=torch.float16,
+        )
+        v = torch.randn(
+            batch_size,
+            num_heads,
+            seq_len,
+            head_dim,
+            device=mps_device,
+            dtype=torch.float16,
+        )
 
         # Use scaled dot product attention
-        out = torch.nn.functional.scaled_dot_product_attention(
-            q, k, v, is_causal=True
-        )
+        out = torch.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True)
 
         assert out.shape == (batch_size, num_heads, seq_len, head_dim)
         assert out.device.type == "mps"
@@ -66,10 +83,13 @@ class TestBasicInference:
         seq_len = 16
         hidden_size = 64
 
-        x = torch.randn(batch_size, seq_len, hidden_size,
-                        device=mps_device, dtype=torch.float16)
+        x = torch.randn(
+            batch_size, seq_len, hidden_size, device=mps_device, dtype=torch.float16
+        )
 
-        layer_norm = torch.nn.LayerNorm(hidden_size, device=mps_device, dtype=torch.float16)
+        layer_norm = torch.nn.LayerNorm(
+            hidden_size, device=mps_device, dtype=torch.float16
+        )
         out = layer_norm(x)
 
         assert out.shape == x.shape
@@ -82,14 +102,17 @@ class TestBasicInference:
         hidden_size = 64
         intermediate_size = 256
 
-        x = torch.randn(batch_size, seq_len, hidden_size,
-                        device=mps_device, dtype=torch.float16)
+        x = torch.randn(
+            batch_size, seq_len, hidden_size, device=mps_device, dtype=torch.float16
+        )
 
         # Create linear layers
-        up_proj = torch.nn.Linear(hidden_size, intermediate_size,
-                                  device=mps_device, dtype=torch.float16)
-        down_proj = torch.nn.Linear(intermediate_size, hidden_size,
-                                    device=mps_device, dtype=torch.float16)
+        up_proj = torch.nn.Linear(
+            hidden_size, intermediate_size, device=mps_device, dtype=torch.float16
+        )
+        down_proj = torch.nn.Linear(
+            intermediate_size, hidden_size, device=mps_device, dtype=torch.float16
+        )
 
         # Feed forward with SiLU activation
         hidden = torch.nn.functional.silu(up_proj(x))
@@ -104,7 +127,10 @@ class TestKVCache:
 
     def test_kv_cache_storage(self, mps_device):
         """Test storing to KV cache."""
-        from vllm_metal.ops.cache import allocate_unified_kv_cache, reshape_and_cache_flash
+        from vllm_metal.ops.cache import (
+            allocate_unified_kv_cache,
+            reshape_and_cache_flash,
+        )
 
         num_blocks = 10
         block_size = 16
@@ -113,18 +139,24 @@ class TestKVCache:
 
         # Allocate cache
         kv_cache = allocate_unified_kv_cache(
-            num_blocks, block_size, num_kv_heads, head_size,
-            dtype=torch.float16, device=mps_device
+            num_blocks,
+            block_size,
+            num_kv_heads,
+            head_size,
+            dtype=torch.float16,
+            device=mps_device,
         )
 
         assert kv_cache.shape == (num_blocks, 2, block_size, num_kv_heads, head_size)
 
         # Store some values
         num_tokens = 8
-        key = torch.randn(num_tokens, num_kv_heads, head_size,
-                          device=mps_device, dtype=torch.float16)
-        value = torch.randn(num_tokens, num_kv_heads, head_size,
-                            device=mps_device, dtype=torch.float16)
+        key = torch.randn(
+            num_tokens, num_kv_heads, head_size, device=mps_device, dtype=torch.float16
+        )
+        value = torch.randn(
+            num_tokens, num_kv_heads, head_size, device=mps_device, dtype=torch.float16
+        )
         slot_mapping = torch.arange(num_tokens, device=mps_device)
 
         reshape_and_cache_flash(key, value, kv_cache, slot_mapping)
@@ -133,12 +165,8 @@ class TestKVCache:
         for i in range(num_tokens):
             block_idx = i // block_size
             block_offset = i % block_size
-            torch.testing.assert_close(
-                kv_cache[block_idx, 0, block_offset], key[i]
-            )
-            torch.testing.assert_close(
-                kv_cache[block_idx, 1, block_offset], value[i]
-            )
+            torch.testing.assert_close(kv_cache[block_idx, 0, block_offset], key[i])
+            torch.testing.assert_close(kv_cache[block_idx, 1, block_offset], value[i])
 
 
 class TestMetalBackendIntegration:
@@ -160,7 +188,7 @@ class TestMetalBackendIntegration:
 
     def test_attention_backend_instantiation(self, mps_device):
         """Test attention backend can be instantiated."""
-        from vllm_metal.attention import MetalAttentionBackend, MPSAttentionImpl
+        from vllm_metal.attention import MPSAttentionImpl
 
         impl = MPSAttentionImpl(
             num_heads=8,
@@ -199,28 +227,35 @@ class TestTransformerBlock:
         intermediate_size = transformer_config["intermediate_size"]
 
         # Input
-        x = torch.randn(batch_size, seq_len, hidden_size,
-                        device=mps_device, dtype=torch.float16)
+        x = torch.randn(
+            batch_size, seq_len, hidden_size, device=mps_device, dtype=torch.float16
+        )
 
         # Layer norm
         ln1 = torch.nn.LayerNorm(hidden_size, device=mps_device, dtype=torch.float16)
 
         # Attention projections
-        q_proj = torch.nn.Linear(hidden_size, num_heads * head_dim,
-                                 device=mps_device, dtype=torch.float16)
-        k_proj = torch.nn.Linear(hidden_size, num_heads * head_dim,
-                                 device=mps_device, dtype=torch.float16)
-        v_proj = torch.nn.Linear(hidden_size, num_heads * head_dim,
-                                 device=mps_device, dtype=torch.float16)
-        o_proj = torch.nn.Linear(num_heads * head_dim, hidden_size,
-                                 device=mps_device, dtype=torch.float16)
+        q_proj = torch.nn.Linear(
+            hidden_size, num_heads * head_dim, device=mps_device, dtype=torch.float16
+        )
+        k_proj = torch.nn.Linear(
+            hidden_size, num_heads * head_dim, device=mps_device, dtype=torch.float16
+        )
+        v_proj = torch.nn.Linear(
+            hidden_size, num_heads * head_dim, device=mps_device, dtype=torch.float16
+        )
+        o_proj = torch.nn.Linear(
+            num_heads * head_dim, hidden_size, device=mps_device, dtype=torch.float16
+        )
 
         # FFN
         ln2 = torch.nn.LayerNorm(hidden_size, device=mps_device, dtype=torch.float16)
-        up_proj = torch.nn.Linear(hidden_size, intermediate_size,
-                                  device=mps_device, dtype=torch.float16)
-        down_proj = torch.nn.Linear(intermediate_size, hidden_size,
-                                    device=mps_device, dtype=torch.float16)
+        up_proj = torch.nn.Linear(
+            hidden_size, intermediate_size, device=mps_device, dtype=torch.float16
+        )
+        down_proj = torch.nn.Linear(
+            intermediate_size, hidden_size, device=mps_device, dtype=torch.float16
+        )
 
         # Forward pass
         residual = x
@@ -231,8 +266,12 @@ class TestTransformerBlock:
         k = k_proj(x).view(batch_size, seq_len, num_heads, head_dim).transpose(1, 2)
         v = v_proj(x).view(batch_size, seq_len, num_heads, head_dim).transpose(1, 2)
 
-        attn_out = torch.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True)
-        attn_out = attn_out.transpose(1, 2).reshape(batch_size, seq_len, num_heads * head_dim)
+        attn_out = torch.nn.functional.scaled_dot_product_attention(
+            q, k, v, is_causal=True
+        )
+        attn_out = attn_out.transpose(1, 2).reshape(
+            batch_size, seq_len, num_heads * head_dim
+        )
         attn_out = o_proj(attn_out)
 
         x = residual + attn_out

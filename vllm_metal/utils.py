@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Utility functions for vLLM Metal backend."""
 
-import subprocess
 import platform
 import re
-from typing import Optional, Tuple
+import subprocess
 from functools import lru_cache
 
 import torch
@@ -21,7 +20,7 @@ def is_apple_silicon() -> bool:
             ["sysctl", "-n", "machdep.cpu.brand_string"],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
         )
         return "Apple" in result.stdout
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -40,7 +39,7 @@ def get_apple_chip_name() -> str:
             ["sysctl", "-n", "machdep.cpu.brand_string"],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
         )
         brand = result.stdout.strip()
         # Extract chip name from brand string
@@ -69,7 +68,7 @@ def get_metal_device_info() -> dict:
                 ["sysctl", "-n", "hw.memsize"],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
             info["total_memory"] = int(result.stdout.strip())
         except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
@@ -81,7 +80,7 @@ def get_metal_device_info() -> dict:
                 ["system_profiler", "SPDisplaysDataType"],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
             match = re.search(r"Total Number of Cores:\s*(\d+)", result.stdout)
             if match:
@@ -92,7 +91,7 @@ def get_metal_device_info() -> dict:
     return info
 
 
-def check_mps_availability() -> Tuple[bool, Optional[str]]:
+def check_mps_availability() -> tuple[bool, str | None]:
     """Check if MPS is available and return status with error message if not.
 
     Returns:
@@ -110,7 +109,7 @@ def check_mps_availability() -> Tuple[bool, Optional[str]]:
     return True, None
 
 
-def get_mps_memory_info() -> Tuple[int, int]:
+def get_mps_memory_info() -> tuple[int, int]:
     """Get MPS memory usage information.
 
     Returns:
@@ -122,10 +121,7 @@ def get_mps_memory_info() -> Tuple[int, int]:
     try:
         # MPS uses unified memory, so we report system memory
         result = subprocess.run(
-            ["sysctl", "-n", "hw.memsize"],
-            capture_output=True,
-            text=True,
-            check=True
+            ["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, check=True
         )
         total = int(result.stdout.strip())
 
@@ -161,7 +157,7 @@ def get_optimal_dtype() -> torch.dtype:
     return torch.float16
 
 
-def check_model_compatibility(model_config) -> Tuple[bool, Optional[str]]:
+def check_model_compatibility(model_config) -> tuple[bool, str | None]:
     """Check if a model configuration is compatible with Metal backend.
 
     Args:
@@ -170,23 +166,21 @@ def check_model_compatibility(model_config) -> Tuple[bool, Optional[str]]:
     Returns:
         Tuple of (is_compatible, error_message)
     """
-    # Check for unsupported features
-    warnings = []
-
     # MPS doesn't support all quantization methods
-    if hasattr(model_config, 'quantization') and model_config.quantization:
+    if hasattr(model_config, "quantization") and model_config.quantization:
         quant = model_config.quantization
-        supported_quant = {'awq', 'gptq', None}
+        supported_quant = {"awq", "gptq", None}
         if quant not in supported_quant:
             return False, f"Quantization method '{quant}' not supported on Metal"
 
     return True, None
 
 
-def format_memory_size(size_bytes: int) -> str:
+def format_memory_size(size_bytes: int | float) -> str:
     """Format memory size in human-readable format."""
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-        if size_bytes < 1024:
-            return f"{size_bytes:.2f} {unit}"
-        size_bytes /= 1024
-    return f"{size_bytes:.2f} PB"
+    size: float = float(size_bytes)
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if size < 1024:
+            return f"{size:.2f} {unit}"
+        size /= 1024
+    return f"{size:.2f} PB"

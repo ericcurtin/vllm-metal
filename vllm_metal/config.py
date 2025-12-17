@@ -2,7 +2,6 @@
 """Configuration for vLLM Metal backend."""
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 import torch
 
@@ -35,24 +34,20 @@ class MetalConfig:
 
     # Backend selection
     use_mlx: bool = field(default_factory=lambda: VLLM_METAL_USE_MLX)
-    attention_backend: str = field(
-        default_factory=lambda: VLLM_METAL_ATTENTION_BACKEND
-    )
+    attention_backend: str = field(default_factory=lambda: VLLM_METAL_ATTENTION_BACKEND)
 
     # Execution mode
     eager_mode: bool = field(default_factory=lambda: VLLM_METAL_EAGER_MODE)
     compile: bool = field(default_factory=lambda: VLLM_METAL_COMPILE)
 
     # Profiling
-    enable_profiling: bool = field(
-        default_factory=lambda: VLLM_METAL_ENABLE_PROFILING
-    )
+    enable_profiling: bool = field(default_factory=lambda: VLLM_METAL_ENABLE_PROFILING)
 
     # Limits
     max_batch_size: int = field(default_factory=lambda: VLLM_METAL_MAX_BATCH_SIZE)
 
     # KV cache
-    kv_cache_dtype: Optional[str] = field(
+    kv_cache_dtype: str | None = field(
         default_factory=lambda: VLLM_METAL_KV_CACHE_DTYPE
     )
 
@@ -64,8 +59,7 @@ class MetalConfig:
         """Validate configuration values."""
         if not 0 < self.memory_fraction <= 1.0:
             raise ValueError(
-                f"memory_fraction must be between 0 and 1, "
-                f"got {self.memory_fraction}"
+                f"memory_fraction must be between 0 and 1, got {self.memory_fraction}"
             )
 
         if self.attention_backend not in ("mps", "eager"):
@@ -83,7 +77,8 @@ class MetalConfig:
         """Get the KV cache dtype as a torch dtype."""
         if self.kv_cache_dtype is None:
             return torch.float16
-        return getattr(torch, self.kv_cache_dtype)
+        dtype: torch.dtype = getattr(torch, self.kv_cache_dtype)
+        return dtype
 
     def to_dict(self) -> dict:
         """Convert configuration to dictionary."""
@@ -101,7 +96,7 @@ class MetalConfig:
 
 
 # Global configuration instance
-_metal_config: Optional[MetalConfig] = None
+_metal_config: MetalConfig | None = None
 
 
 def get_metal_config() -> MetalConfig:

@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Rotary positional embedding operations for Metal backend."""
 
-from typing import Optional, Tuple
-
 import torch
 
 
@@ -13,7 +11,7 @@ def rotary_embedding(
     head_size: int,
     cos_sin_cache: torch.Tensor,
     is_neox: bool = True,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Apply rotary positional embeddings to query and key tensors.
 
     Args:
@@ -143,7 +141,7 @@ def create_cos_sin_cache(
     head_size: int,
     base: float = 10000.0,
     dtype: torch.dtype = torch.float32,
-    device: Optional[torch.device] = None,
+    device: torch.device | None = None,
 ) -> torch.Tensor:
     """Create cosine/sine cache for rotary embeddings.
 

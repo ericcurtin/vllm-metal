@@ -2,6 +2,7 @@
 """Tests for utility functions."""
 
 import platform
+
 import pytest
 import torch
 

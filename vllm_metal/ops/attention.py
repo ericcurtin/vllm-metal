@@ -1,11 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Paged attention operations for Metal backend."""
 
-import math
-from typing import Optional, Tuple
-
 import torch
-import torch.nn.functional as F
+from torch.nn import functional
 
 
 def paged_attention_v1(
@@ -19,7 +16,7 @@ def paged_attention_v1(
     seq_lens: torch.Tensor,
     block_size: int,
     max_seq_len: int,
-    alibi_slopes: Optional[torch.Tensor] = None,
+    alibi_slopes: torch.Tensor | None = None,
     kv_cache_dtype: str = "auto",
     k_scale: float = 1.0,
     v_scale: float = 1.0,
@@ -46,7 +43,6 @@ def paged_attention_v1(
     """
     num_seqs = query.shape[0]
     num_heads = query.shape[1]
-    head_size = query.shape[2]
     num_queries_per_kv = num_heads // num_kv_heads
 
     for seq_idx in range(num_seqs):
@@ -58,16 +54,16 @@ def paged_attention_v1(
         q = query[seq_idx]  # [num_heads, head_size]
 
         # Gather keys and values from cache
-        num_blocks_needed = (seq_len + block_size - 1) // block_size
+        num_blocks_needed = int((seq_len + block_size - 1) // block_size)
         block_table = block_tables[seq_idx]
 
-        keys = []
-        values = []
+        keys: list[torch.Tensor] = []
+        values: list[torch.Tensor] = []
 
         tokens_gathered = 0
         for block_idx in range(num_blocks_needed):
-            physical_block = block_table[block_idx].item()
-            tokens_in_block = min(block_size, seq_len - tokens_gathered)
+            physical_block = int(block_table[block_idx].item())
+            tokens_in_block = int(min(block_size, seq_len - tokens_gathered))
 
             k_block = key_cache[physical_block, :tokens_in_block]
             v_block = value_cache[physical_block, :tokens_in_block]
@@ -104,7 +100,7 @@ def paged_attention_v1(
             attn_weights = attn_weights + alibi_bias
 
         # Softmax
-        attn_weights = F.softmax(attn_weights, dim=-1)
+        attn_weights = functional.softmax(attn_weights, dim=-1)
 
         # Weighted sum: [num_heads, head_size]
         output = torch.einsum("hs,shd->hd", attn_weights, v)
@@ -126,7 +122,7 @@ def paged_attention_v2(
     seq_lens: torch.Tensor,
     block_size: int,
     max_seq_len: int,
-    alibi_slopes: Optional[torch.Tensor] = None,
+    alibi_slopes: torch.Tensor | None = None,
     kv_cache_dtype: str = "auto",
     k_scale: float = 1.0,
     v_scale: float = 1.0,

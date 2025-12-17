@@ -1,22 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """Metal worker implementation for vLLM."""
 
-from typing import Dict, List, Optional, Set, Tuple, Type
-
 import torch
 
 from vllm_metal._compat import (
     ExecuteModelRequest,
     WorkerBase,
-    WorkerInput,
     init_logger,
 )
-
 from vllm_metal.utils import (
     check_mps_availability,
     get_metal_device_info,
     mps_empty_cache,
-    mps_synchronize,
 )
 from vllm_metal.worker.metal_model_runner import MetalModelRunner
 
@@ -40,9 +35,9 @@ class MetalWorker(WorkerBase):
         load_config,
         local_rank: int = 0,
         rank: int = 0,
-        distributed_init_method: Optional[str] = None,
+        distributed_init_method: str | None = None,
         is_driver_worker: bool = True,
-        model_runner_cls: Optional[Type[MetalModelRunner]] = None,
+        model_runner_cls: type[MetalModelRunner] | None = None,
         **kwargs,
     ):
         """Initialize the Metal worker.
@@ -94,12 +89,11 @@ class MetalWorker(WorkerBase):
         )
 
         # KV cache
-        self.gpu_cache: Optional[List[torch.Tensor]] = None
-        self.cpu_cache: Optional[List[torch.Tensor]] = None
+        self.gpu_cache: list[torch.Tensor] | None = None
+        self.cpu_cache: list[torch.Tensor] | None = None
 
         logger.info(
-            f"Initialized MetalWorker: device={self.device}, "
-            f"driver={is_driver_worker}"
+            f"Initialized MetalWorker: device={self.device}, driver={is_driver_worker}"
         )
 
     def init_device(self) -> None:
@@ -110,15 +104,14 @@ class MetalWorker(WorkerBase):
         # Log device info
         info = get_metal_device_info()
         logger.info(
-            f"Metal device: {info['name']}, "
-            f"MPS available: {info['mps_available']}"
+            f"Metal device: {info['name']}, MPS available: {info['mps_available']}"
         )
 
     def load_model(self) -> None:
         """Load the model onto the MPS device."""
         self.model_runner.load_model()
 
-    def determine_num_available_blocks(self) -> Tuple[int, int]:
+    def determine_num_available_blocks(self) -> tuple[int, int]:
         """Determine the number of available KV cache blocks.
 
         Returns:
@@ -149,12 +142,12 @@ class MetalWorker(WorkerBase):
 
         # Memory per block (K + V for all layers)
         bytes_per_block = (
-            2 *  # K and V
-            block_size *
-            num_layers *
-            num_kv_heads *
-            head_size *
-            2  # float16
+            2  # K and V
+            * block_size
+            * num_layers
+            * num_kv_heads
+            * head_size
+            * 2  # float16
         )
 
         num_gpu_blocks = int(cache_memory // bytes_per_block)
@@ -165,8 +158,7 @@ class MetalWorker(WorkerBase):
         num_cpu_blocks = int(cpu_memory // bytes_per_block)
 
         logger.info(
-            f"KV cache: {num_gpu_blocks} GPU blocks, "
-            f"{num_cpu_blocks} CPU blocks"
+            f"KV cache: {num_gpu_blocks} GPU blocks, {num_cpu_blocks} CPU blocks"
         )
 
         return num_gpu_blocks, num_cpu_blocks
@@ -201,7 +193,7 @@ class MetalWorker(WorkerBase):
 
     def execute_model(
         self,
-        execute_model_req: Optional[ExecuteModelRequest] = None,
+        execute_model_req: ExecuteModelRequest | None = None,
     ):
         """Execute model forward pass.
 
@@ -214,6 +206,7 @@ class MetalWorker(WorkerBase):
         if execute_model_req is None:
             return None
 
+        assert self.gpu_cache is not None, "GPU cache must be initialized"
         return self.model_runner.execute_model(
             execute_model_req,
             self.gpu_cache,
@@ -243,13 +236,13 @@ class MetalWorker(WorkerBase):
         """Warm up the model with a dummy run."""
         self.model_runner.warm_up()
 
-    def swap_in(self, blocks_to_swap_in: Dict[int, int]) -> None:
+    def swap_in(self, blocks_to_swap_in: dict[int, int]) -> None:
         """Swap blocks from CPU to GPU.
 
         Args:
             blocks_to_swap_in: Mapping from CPU block to GPU block
         """
-        if not blocks_to_swap_in or self.cpu_cache is None:
+        if not blocks_to_swap_in or self.cpu_cache is None or self.gpu_cache is None:
             return
 
         for cpu_block, gpu_block in blocks_to_swap_in.items():
@@ -258,13 +251,13 @@ class MetalWorker(WorkerBase):
                     self.cpu_cache[layer_idx][cpu_block]
                 )
 
-    def swap_out(self, blocks_to_swap_out: Dict[int, int]) -> None:
+    def swap_out(self, blocks_to_swap_out: dict[int, int]) -> None:
         """Swap blocks from GPU to CPU.
 
         Args:
             blocks_to_swap_out: Mapping from GPU block to CPU block
         """
-        if not blocks_to_swap_out or self.cpu_cache is None:
+        if not blocks_to_swap_out or self.cpu_cache is None or self.gpu_cache is None:
             return
 
         for gpu_block, cpu_block in blocks_to_swap_out.items():
@@ -273,16 +266,16 @@ class MetalWorker(WorkerBase):
                     self.gpu_cache[layer_idx][gpu_block]
                 )
 
-    def copy_blocks(self, blocks_to_copy: List[Tuple[int, int]]) -> None:
+    def copy_blocks(self, blocks_to_copy: list[tuple[int, int]]) -> None:
         """Copy blocks within GPU cache.
 
         Args:
             blocks_to_copy: List of (src_block, dst_block) tuples
         """
-        if not blocks_to_copy:
+        if not blocks_to_copy or self.gpu_cache is None:
             return
 
-        from vllm_metal.ops import copy_blocks
+        from vllm_metal.ops import copy_blocks as copy_blocks_op
 
         src_to_dsts = torch.tensor(
             blocks_to_copy,
@@ -290,7 +283,7 @@ class MetalWorker(WorkerBase):
             device=self.device,
         )
 
-        copy_blocks(self.gpu_cache, src_to_dsts)
+        copy_blocks_op(self.gpu_cache, src_to_dsts)
 
     def __del__(self):
         """Cleanup when worker is destroyed."""

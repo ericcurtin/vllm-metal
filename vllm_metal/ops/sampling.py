@@ -1,10 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Sampling operations for Metal backend."""
 
-from typing import Optional, Tuple
-
 import torch
-import torch.nn.functional as F
+from torch.nn import functional
 
 
 def sampling_from_probs(
@@ -55,7 +53,7 @@ def top_p_sampling(
 
     # Sort logits in descending order
     sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
-    sorted_probs = F.softmax(sorted_logits, dim=-1)
+    sorted_probs = functional.softmax(sorted_logits, dim=-1)
     cumsum_probs = sorted_probs.cumsum(dim=-1)
 
     # Create mask for tokens to remove
@@ -65,7 +63,7 @@ def top_p_sampling(
     sorted_logits[sorted_mask] = float("-inf")
 
     # Sample from filtered distribution
-    probs = F.softmax(sorted_logits, dim=-1)
+    probs = functional.softmax(sorted_logits, dim=-1)
     sampled_sorted_idx = torch.multinomial(probs, num_samples=1).squeeze(-1)
 
     # Map back to original indices
@@ -95,7 +93,7 @@ def top_k_sampling(
     top_k_logits, top_k_indices = torch.topk(logits, k=top_k, dim=-1)
 
     # Sample from top-k
-    probs = F.softmax(top_k_logits, dim=-1)
+    probs = functional.softmax(top_k_logits, dim=-1)
     sampled_top_k_idx = torch.multinomial(probs, num_samples=1).squeeze(-1)
 
     # Map back to original indices
@@ -138,7 +136,7 @@ def top_k_top_p_sampling(
     # Apply top-p
     if top_p < 1.0:
         sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
-        sorted_probs = F.softmax(sorted_logits, dim=-1)
+        sorted_probs = functional.softmax(sorted_logits, dim=-1)
         cumsum_probs = sorted_probs.cumsum(dim=-1)
 
         # Create mask for tokens to remove
@@ -146,13 +144,10 @@ def top_k_top_p_sampling(
         sorted_logits[sorted_mask] = float("-inf")
 
         # Unsort
-        logits = sorted_logits.gather(
-            dim=-1,
-            index=sorted_indices.argsort(dim=-1)
-        )
+        logits = sorted_logits.gather(dim=-1, index=sorted_indices.argsort(dim=-1))
 
     # Sample
-    probs = F.softmax(logits, dim=-1)
+    probs = functional.softmax(logits, dim=-1)
     return torch.multinomial(probs, num_samples=1).squeeze(-1)
 
 

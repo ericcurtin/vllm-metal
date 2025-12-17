@@ -2,7 +2,6 @@
 """Pytest configuration and fixtures for vLLM Metal tests."""
 
 import platform
-import sys
 
 import pytest
 import torch
@@ -13,9 +12,7 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "metal: mark test as requiring Metal/MPS backend"
     )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
-    )
+    config.addinivalue_line("markers", "slow: mark test as slow running")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -57,4 +54,5 @@ def sample_tensor(mps_device):
 def metal_config():
     """Fixture providing a default Metal configuration."""
     from vllm_metal.config import MetalConfig
+
     return MetalConfig()

@@ -1,11 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Model loader for Metal backend."""
 
-from typing import Dict, List, Optional, Type
-
 import torch
 
-from vllm_metal._compat import BaseModelLoader, init_logger, VLLM_AVAILABLE
+from vllm_metal._compat import VLLM_AVAILABLE, BaseModelLoader, init_logger
 from vllm_metal.utils import get_optimal_dtype
 
 logger = init_logger(__name__)
@@ -146,9 +144,9 @@ def load_weights_to_mps(
 
 
 def convert_weights_for_metal(
-    state_dict: Dict[str, torch.Tensor],
+    state_dict: dict[str, torch.Tensor],
     dtype: torch.dtype = torch.float16,
-) -> Dict[str, torch.Tensor]:
+) -> dict[str, torch.Tensor]:
     """Convert a state dict for Metal execution.
 
     Args:
@@ -205,11 +203,11 @@ def estimate_model_memory(
     # - MLP: 2 * hidden_size * (4 * hidden_size)
     # - LayerNorms: 2 * hidden_size
     layer_params = (
-        4 * hidden_size * hidden_size +  # Attention
-        8 * hidden_size * hidden_size +  # MLP (assuming 4x expansion)
-        2 * hidden_size  # LayerNorms
+        4 * hidden_size * hidden_size  # Attention
+        + 8 * hidden_size * hidden_size  # MLP (assuming 4x expansion)
+        + 2 * hidden_size  # LayerNorms
     )
 
     total_params = embedding_params + num_layers * layer_params
 
-    return total_params * bytes_per_param
+    return int(total_params * bytes_per_param)

@@ -1,10 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Activation functions for Metal backend."""
 
-import math
-
 import torch
-import torch.nn.functional as F
+from torch.nn import functional
 
 
 def silu_and_mul(out: torch.Tensor, x: torch.Tensor) -> None:
@@ -24,7 +22,7 @@ def silu_and_mul(out: torch.Tensor, x: torch.Tensor) -> None:
     up = x[..., d:]
 
     # SiLU = x * sigmoid(x)
-    out.copy_(F.silu(gate) * up)
+    out.copy_(functional.silu(gate) * up)
 
 
 def gelu_and_mul(out: torch.Tensor, x: torch.Tensor) -> None:
@@ -41,7 +39,7 @@ def gelu_and_mul(out: torch.Tensor, x: torch.Tensor) -> None:
     gate = x[..., :d]
     up = x[..., d:]
 
-    out.copy_(F.gelu(gate) * up)
+    out.copy_(functional.gelu(gate) * up)
 
 
 def gelu_tanh_and_mul(out: torch.Tensor, x: torch.Tensor) -> None:
@@ -62,7 +60,7 @@ def gelu_tanh_and_mul(out: torch.Tensor, x: torch.Tensor) -> None:
     up = x[..., d:]
 
     # GELU with tanh approximation
-    out.copy_(F.gelu(gate, approximate="tanh") * up)
+    out.copy_(functional.gelu(gate, approximate="tanh") * up)
 
 
 def gelu_new(x: torch.Tensor) -> torch.Tensor:
@@ -76,7 +74,7 @@ def gelu_new(x: torch.Tensor) -> torch.Tensor:
     Returns:
         GELU activated tensor
     """
-    return F.gelu(x, approximate="tanh")
+    return functional.gelu(x, approximate="tanh")
 
 
 def gelu_fast(x: torch.Tensor) -> torch.Tensor:
@@ -90,7 +88,9 @@ def gelu_fast(x: torch.Tensor) -> torch.Tensor:
     Returns:
         GELU activated tensor
     """
-    return 0.5 * x * (1.0 + torch.tanh(x * 0.7978845608028654 * (1.0 + 0.044715 * x * x)))
+    return (
+        0.5 * x * (1.0 + torch.tanh(x * 0.7978845608028654 * (1.0 + 0.044715 * x * x)))
+    )
 
 
 def quickgelu(x: torch.Tensor) -> torch.Tensor:
@@ -120,4 +120,4 @@ def relu_squared(x: torch.Tensor) -> torch.Tensor:
     Returns:
         Activated tensor
     """
-    return F.relu(x).square()
+    return functional.relu(x).square()

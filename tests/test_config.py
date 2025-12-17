@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for Metal configuration."""
 
-import os
 import pytest
 import torch
 
