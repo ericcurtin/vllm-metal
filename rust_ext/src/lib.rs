@@ -273,6 +273,86 @@ fn tensor_to_nested_list_preallocated(
     tensor_to_nested_list(py, arr)
 }
 
+/// Prepare decode batch state in a single call.
+/// This combines multiple operations that would normally require Python loops:
+/// 1. Compute sequence lengths after decode (seq_lens + 1)
+/// 2. Compute query_start_loc (cumulative sum)
+/// 3. Compute positions for each sequence
+/// 4. Compute flat cache indices for all sequences
+///
+/// Returns: (seq_lens_out, query_start_loc, positions, cache_indices, max_seq_len)
+#[pyfunction]
+fn prepare_decode_batch(
+    py: Python<'_>,
+    num_computed_tokens: PyReadonlyArray1<i64>,
+    block_table: PyReadonlyArray2<i64>,
+    block_size: i64,
+) -> PyResult<(PyObject, PyObject, PyObject, PyObject, i64)> {
+    let computed = num_computed_tokens.as_array();
+    let block_table = block_table.as_array();
+    let num_seqs = computed.len();
+
+    // Allocate output
+    let seq_lens_list = PyList::empty_bound(py);
+    let query_start_list = PyList::empty_bound(py);
+    let positions_list = PyList::empty_bound(py);
+    let cache_indices_list = PyList::empty_bound(py);
+
+    let mut max_seq_len: i64 = 0;
+    let mut query_start: i64 = 0;
+
+    // Process all sequences
+    for seq_idx in 0..num_seqs {
+        // New sequence length after this decode step
+        let seq_len = computed[seq_idx] + 1;
+        seq_lens_list.append(seq_len)?;
+
+        // Update max
+        if seq_len > max_seq_len {
+            max_seq_len = seq_len;
+        }
+
+        // Query start loc
+        query_start_list.append(query_start)?;
+        query_start += 1; // Each decode has 1 query token
+
+        // Position for this sequence
+        positions_list.append(computed[seq_idx])?;
+
+        // Compute slot mapping for this token
+        let slot_pos = computed[seq_idx];
+        let logical_block = slot_pos / block_size;
+        let block_offset = slot_pos % block_size;
+        let physical_block = block_table[[seq_idx, logical_block as usize]];
+        let flat_idx = physical_block * block_size + block_offset;
+        cache_indices_list.append(flat_idx)?;
+    }
+
+    // Final query_start_loc entry
+    query_start_list.append(query_start)?;
+
+    Ok((
+        seq_lens_list.into(),
+        query_start_list.into(),
+        positions_list.into(),
+        cache_indices_list.into(),
+        max_seq_len,
+    ))
+}
+
+/// Fast comparison of request ID lists.
+/// Returns true if the lists are identical.
+#[pyfunction]
+fn compare_req_ids(
+    ids_a: Vec<String>,
+    ids_b: Vec<String>,
+) -> bool {
+    if ids_a.len() != ids_b.len() {
+        return false;
+    }
+    ids_a.iter().zip(ids_b.iter()).all(|(a, b)| a == b)
+}
+
 /// A Python module implemented in Rust for fast tensor operations.
 #[pymodule]
 fn vllm_metal_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -283,6 +363,8 @@ fn vllm_metal_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(compute_padded_kv_indices, m)?)?;
     m.add_function(wrap_pyfunction!(compute_rotary_positions, m)?)?;
     m.add_function(wrap_pyfunction!(tensor_to_nested_list_preallocated, m)?)?;
+    m.add_function(wrap_pyfunction!(prepare_decode_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(compare_req_ids, m)?)?;
     m.add_class::<AsyncTokenBuffer>()?;
     Ok(())
 }
