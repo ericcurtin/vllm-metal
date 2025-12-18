@@ -200,11 +200,6 @@ class TestMetalBackendIntegration:
 
     def test_attention_backend_instantiation(self, metal_device):
         """Test attention backend can be instantiated."""
-        from vllm_metal._compat import VLLM_AVAILABLE
-
-        if not VLLM_AVAILABLE:
-            pytest.skip("vllm not installed, skipping attention backend test")
-
         from vllm_metal.attention import MetalAttentionImpl
 
         impl = MetalAttentionImpl(

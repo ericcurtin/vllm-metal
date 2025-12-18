@@ -78,7 +78,7 @@ download_and_install_wheel() {
   # that don't work on macOS/Apple Silicon
   echo ""
   echo "Installing vllm (without CUDA dependencies)..."
-  if ! uv pip install --upgrade --no-deps vllm; then
+  if ! uv pip install --upgrade --no-deps "vllm>=0.12.0"; then
     error "Failed to install vllm."
     exit 1
   fi

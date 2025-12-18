@@ -5,12 +5,6 @@ import pytest
 import torch
 from torch.nn import functional
 
-from vllm_metal._compat import VLLM_AVAILABLE
-
-# Skip entire module if vllm is not available
-if not VLLM_AVAILABLE:
-    pytest.skip("vllm not installed, skipping attention tests", allow_module_level=True)
-
 from vllm_metal.attention.backend import (
     MetalAttentionBackend,
     MetalAttentionImpl,
