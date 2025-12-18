@@ -18,7 +18,7 @@ main() {
   uv pip install pydantic cbor2 msgspec cloudpickle prometheus-client fastapi uvicorn uvloop pillow \
     tiktoken typing_extensions filelock py-cpuinfo aiohttp openai einops importlib_metadata mistral_common \
     pyyaml requests tqdm sentencepiece gguf blake3 pyzmq regex protobuf setuptools depyf numba \
-    tokenizers
+    tokenizers cachetools
 
   if is_apple_silicon; then
     brew install shellcheck

@@ -6,6 +6,12 @@ This module provides Metal backend support for vLLM,
 enabling high-performance LLM inference on Apple Silicon devices.
 """
 
+import os
+
+# Metal requires V2 model runner which properly handles prefill_token_ids
+# in the scheduler. This must be set BEFORE vllm.envs is imported anywhere.
+os.environ.setdefault("VLLM_USE_V2_MODEL_RUNNER", "1")
+
 __version__ = "0.1.0"
 
 
