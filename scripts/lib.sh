@@ -55,6 +55,56 @@ get_repo_root() {
 install_dev_deps() {
   section "Installing dependencies"
   uv pip install -e ".[dev]"
+  
+  section "Installing vllm (without CUDA dependencies)"
+  # Install vllm with --no-deps to avoid pulling in CUDA dependencies
+  # that don't work on non-CUDA systems (macOS/Apple Silicon, Linux without CUDA)
+  uv pip install --no-deps "vllm>=0.12.0"
+  
+  section "Installing vllm dependencies"
+  # Install vllm's essential dependencies needed for testing
+  # These are the dependencies that vllm needs to import its modules
+  uv pip install \
+    msgspec \
+    cloudpickle \
+    prometheus-client \
+    fastapi \
+    uvicorn \
+    pydantic \
+    pillow \
+    tiktoken \
+    typing_extensions \
+    filelock \
+    py-cpuinfo \
+    aiohttp \
+    openai \
+    einops \
+    importlib_metadata \
+    mistral_common \
+    pyyaml \
+    requests \
+    tqdm \
+    sentencepiece \
+    compressed-tensors \
+    gguf \
+    partial-json-parser \
+    blake3 \
+    cbor2 \
+    pyzmq \
+    cachetools \
+    regex \
+    protobuf \
+    python-multipart \
+    lark \
+    six \
+    scipy \
+    ninja \
+    pybase64 \
+    setproctitle \
+    "tokenizers>=0.21.1" \
+    diskcache \
+    interegular \
+    "torch>=2.5.0"
 }
 
 # Full development environment setup
